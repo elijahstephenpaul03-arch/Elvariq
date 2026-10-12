@@ -1,0 +1,6 @@
+{
+  "name": "ELVARIQ - Enquiry & Relationship Management System",
+  "description": "An academic frontend prototype for an IME subject case study. Organise enquiries, assign staff, schedule follow-ups, and track admissions and conversions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
