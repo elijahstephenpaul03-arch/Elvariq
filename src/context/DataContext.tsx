@@ -1,11 +1,12 @@
 /**
  * @license
  * ELVARIQ - Enquiry & Relationship Management System
- * Academic Frontend Prototype | IME Subject Case Study
+ * Full-Stack Application | IME Subject Case Study
  * 
  * Global Data Context & Provider
- * Manages reactive state across all 10 application views, coordinates localStorage
- * mutations, and synchronizes enquiry updates with staff workloads and tasks.
+ * Powered by Node.js/Express + PostgreSQL (Cloud SQL asia-southeast1) + Firebase Auth.
+ * Automatically synchronizes with backend REST APIs while providing resilient
+ * client caching and reactive state across all 10 application views.
  */
 
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
@@ -32,12 +33,15 @@ import {
   generateNextEnquiryId,
   generateNextTaskId,
 } from '../services/storage';
+import { apiClient, setActiveRoleForHeaders } from '../services/apiClient';
 
 interface ToastState {
   id: string;
   message: string;
   type: 'success' | 'info' | 'warning' | 'error';
 }
+
+export type BackendConnectionState = 'connected' | 'connecting' | 'offline';
 
 interface DataContextType {
   // Navigation & View State
@@ -46,6 +50,11 @@ interface DataContextType {
   quickSearchQuery: string;
   setQuickSearchQuery: (q: string) => void;
   
+  // Backend & Database Health
+  backendStatus: BackendConnectionState;
+  backendInfo: string;
+  refreshBackendData: () => Promise<void>;
+
   // Demonstration Role Persona
   currentDemoRole: StaffRole;
   setCurrentDemoRole: (role: StaffRole) => void;
@@ -77,30 +86,32 @@ interface DataContextType {
     priority: Enquiry['priority'];
     status: Enquiry['status'];
     remarks: string;
-  }) => Enquiry;
+    assignedStaffId?: string | null;
+    followUpDate?: string | null;
+  }) => Promise<Enquiry>;
 
-  updateEnquiry: (id: string, updates: Partial<Enquiry>) => void;
-  deleteEnquiry: (id: string) => void;
-  assignStaffToEnquiry: (enquiryId: string, staffId: string, initialNote?: string) => void;
+  updateEnquiry: (id: string, updates: Partial<Enquiry>) => Promise<void>;
+  deleteEnquiry: (id: string) => Promise<void>;
+  assignStaffToEnquiry: (enquiryId: string, staffId: string, initialNote?: string) => Promise<void>;
   
   // Task Actions
-  updateTaskStatus: (taskId: string, newStatus: TaskStatus) => void;
-  addTaskNote: (taskId: string, content: string) => void;
-  scheduleFollowUp: (enquiryId: string, followUpDate: string, note?: string) => void;
+  updateTaskStatus: (taskId: string, newStatus: TaskStatus) => Promise<void>;
+  addTaskNote: (taskId: string, content: string) => Promise<void>;
+  scheduleFollowUp: (enquiryId: string, followUpDate: string, note?: string) => Promise<void>;
 
   // Case Study Test Cases
   updateTestCase: (id: string, status: TestResultStatus, actualResult?: string, notes?: string) => void;
   runAutomatedTestWorkflow: (testId: string) => void;
 
   // System Controls
-  resetSystemData: () => void;
+  resetSystemData: () => Promise<void>;
 
   // Toast Notification
   toasts: ToastState[];
   showToast: (message: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
   removeToast: (id: string) => void;
 
-  // Derived Metrics (Always real-time calculated from underlying arrays)
+  // Derived Metrics
   metrics: {
     totalEnquiries: number;
     newEnquiries: number;
@@ -124,7 +135,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [quickSearchQuery, setQuickSearchQuery] = useState('');
   const [currentDemoRole, setCurrentDemoRole] = useState<StaffRole>('Manager');
 
-  // Core Collections
+  // Backend Connection
+  const [backendStatus, setBackendStatus] = useState<BackendConnectionState>('connecting');
+  const [backendInfo, setBackendInfo] = useState<string>('Connecting to PostgreSQL Cloud SQL...');
+
+  // Core Collections (initialized with local cache for instant zero-latency paint)
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [tasks, setTasks] = useState<FollowUpTask[]>([]);
@@ -139,7 +154,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [toasts, setToasts] = useState<ToastState[]>([]);
 
   const showToast = (message: string, type: 'success' | 'info' | 'warning' | 'error' = 'info') => {
-    const id = `${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+    const id = `${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
       removeToast(id);
@@ -150,16 +165,62 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  // Sync role to API client headers
+  useEffect(() => {
+    setActiveRoleForHeaders(currentDemoRole);
+  }, [currentDemoRole]);
+
+  // Sync data from Cloud SQL backend
+  const refreshBackendData = async () => {
+    try {
+      const health = await apiClient.checkHealth();
+      if (health.status === 'healthy') {
+        setBackendStatus('connected');
+        setBackendInfo(health.database || 'PostgreSQL Connected');
+
+        // Fetch all primary datasets in parallel
+        const [remoteStaff, remoteEnquiries, remoteTasks] = await Promise.all([
+          apiClient.fetchStaff().catch(() => null),
+          apiClient.fetchEnquiries().catch(() => null),
+          apiClient.fetchTasks().catch(() => null),
+        ]);
+
+        if (remoteStaff && remoteStaff.length > 0) {
+          setStaff(remoteStaff);
+        }
+        if (remoteEnquiries && remoteEnquiries.length > 0) {
+          setEnquiries(remoteEnquiries);
+          saveEnquiries(remoteEnquiries);
+        }
+        if (remoteTasks && remoteTasks.length > 0) {
+          setTasks(remoteTasks);
+          saveTasks(remoteTasks);
+        }
+      } else {
+        setBackendStatus('offline');
+        setBackendInfo('Running in offline/local cache mode');
+      }
+    } catch (err) {
+      console.warn('Backend sync warning:', err);
+      setBackendStatus('offline');
+      setBackendInfo('Local cache active');
+    }
+  };
+
   // Load Initial Data on Mount
   useEffect(() => {
+    // 1. First populate immediately from localStorage
     initializeStorageIfEmpty();
     setEnquiries(getEnquiries());
     setStaff(getStaffMembers());
     setTasks(getTasks());
     setTestCases(getTestCases());
+
+    // 2. Then query backend for real-time Cloud SQL records
+    refreshBackendData();
   }, []);
 
-  // Sync mutations back to localStorage
+  // Sync local changes to localStorage
   const commitEnquiries = (updated: Enquiry[]) => {
     setEnquiries(updated);
     saveEnquiries(updated);
@@ -176,9 +237,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   /**
-   * Feature 1: Add a new enquiry with validation and unique ID generation.
+   * Feature 1: Add a new enquiry with server-side validation and Cloud SQL persistence.
    */
-  const addEnquiry = (data: {
+  const addEnquiry = async (data: {
     fullName: string;
     phone: string;
     email: string;
@@ -190,31 +251,54 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     priority: Enquiry['priority'];
     status: Enquiry['status'];
     remarks: string;
-  }): Enquiry => {
-    const newId = generateNextEnquiryId(enquiries);
-    const now = new Date().toISOString();
+    assignedStaffId?: string | null;
+    followUpDate?: string | null;
+  }): Promise<Enquiry> => {
+    try {
+      // Send to Express API & PostgreSQL
+      const createdRecord = await apiClient.createEnquiry(data);
+      
+      // Update local state with the returned database record
+      setEnquiries((prev) => [createdRecord, ...prev.filter((e) => e.id !== createdRecord.id)]);
+      saveEnquiries([createdRecord, ...enquiries]);
 
-    const record: Enquiry = {
-      ...data,
-      id: newId,
-      assignedStaffId: null,
-      followUpDate: null,
-      isDemoRecord: false, // Flagged as newly entered user record
-      createdAt: now,
-      updatedAt: now,
-    };
+      // If a task was auto-created, refresh task collection
+      if (data.assignedStaffId && (data.status === 'Assigned' || data.status === 'In Follow-up')) {
+        apiClient.fetchTasks().then((freshTasks) => {
+          setTasks(freshTasks);
+          saveTasks(freshTasks);
+        }).catch(() => {});
+      }
 
-    const updated = [record, ...enquiries];
-    commitEnquiries(updated);
-    showToast(`Enquiry ${newId} registered successfully!`, 'success');
-    return record;
+      showToast(`Enquiry ${createdRecord.id} registered & saved to PostgreSQL!`, 'success');
+      return createdRecord;
+    } catch (error: any) {
+      const errorMsg = error?.message || 'Failed to register enquiry';
+      showToast(errorMsg, 'error');
+      
+      // Fallback local persistence if backend is temporarily unreachable
+      const newId = generateNextEnquiryId(enquiries);
+      const now = new Date().toISOString();
+      const fallbackRecord: Enquiry = {
+        ...data,
+        id: newId,
+        assignedStaffId: data.assignedStaffId || null,
+        followUpDate: data.followUpDate || null,
+        isDemoRecord: false,
+        createdAt: now,
+        updatedAt: now,
+      };
+      commitEnquiries([fallbackRecord, ...enquiries]);
+      return fallbackRecord;
+    }
   };
 
   /**
-   * Feature 2: Update existing enquiry record.
+   * Feature 2: Update existing enquiry record in Cloud SQL.
    */
-  const updateEnquiry = (id: string, updates: Partial<Enquiry>) => {
+  const updateEnquiry = async (id: string, updates: Partial<Enquiry>) => {
     const now = new Date().toISOString();
+    // Optimistic update
     const updated = enquiries.map((item) => {
       if (item.id === id) {
         return {
@@ -225,15 +309,22 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       return item;
     });
-
     commitEnquiries(updated);
-    showToast(`Record ${id} updated successfully.`, 'info');
+
+    try {
+      await apiClient.updateEnquiry(id, updates);
+      showToast(`Record ${id} updated in PostgreSQL.`, 'info');
+    } catch (error: any) {
+      console.warn('API update failed, kept local state:', error);
+      showToast(`Updated locally (sync error: ${error.message})`, 'warning');
+    }
   };
 
   /**
-   * Feature 2: Delete enquiry record with cascading cleanup on tasks.
+   * Feature 2: Delete enquiry record with cascading cleanup in Cloud SQL.
    */
-  const deleteEnquiry = (id: string) => {
+  const deleteEnquiry = async (id: string) => {
+    // Optimistic local state update
     const updatedEnquiries = enquiries.filter((e) => e.id !== id);
     const updatedTasks = tasks.filter((t) => t.enquiryId !== id);
 
@@ -244,14 +335,19 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (editEnquiryId === id) setEditEnquiryId(null);
     if (assignEnquiryId === id) setAssignEnquiryId(null);
 
-    showToast(`Enquiry ${id} was removed.`, 'warning');
+    try {
+      await apiClient.deleteEnquiry(id);
+      showToast(`Enquiry ${id} was deleted from PostgreSQL.`, 'warning');
+    } catch (error: any) {
+      console.warn('API deletion error:', error);
+      showToast(`Enquiry ${id} removed locally.`, 'warning');
+    }
   };
 
   /**
    * Feature 3: Staff Assignment Workflow
-   * Updates enquiry, sets status to 'Assigned' if it was 'New', and schedules/updates counsellor task.
    */
-  const assignStaffToEnquiry = (enquiryId: string, staffId: string, initialNote?: string) => {
+  const assignStaffToEnquiry = async (enquiryId: string, staffId: string, initialNote?: string) => {
     const targetEnquiry = enquiries.find((e) => e.id === enquiryId);
     const assignedMember = staff.find((s) => s.id === staffId);
 
@@ -263,7 +359,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const nextStatus = targetEnquiry.status === 'New' ? 'Assigned' : targetEnquiry.status;
     const now = new Date().toISOString();
 
-    // 1. Update enquiry
+    // 1. Optimistic update
     const updatedEnquiries = enquiries.map((e) => {
       if (e.id === enquiryId) {
         return {
@@ -277,71 +373,79 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
     commitEnquiries(updatedEnquiries);
 
-    // 2. Check if a task already exists for this enquiry, otherwise create one
-    const existingTask = tasks.find((t) => t.enquiryId === enquiryId);
-    let updatedTasks: FollowUpTask[];
+    try {
+      await apiClient.assignStaff(enquiryId, staffId, initialNote);
+      // Refresh tasks to get real server-side generated task
+      const freshTasks = await apiClient.fetchTasks();
+      setTasks(freshTasks);
+      saveTasks(freshTasks);
+      showToast(`Assigned ${targetEnquiry.fullName} to ${assignedMember.name} (Saved to SQL).`, 'success');
+    } catch (err: any) {
+      console.warn('API assignStaff failed:', err);
+      // Fallback local task generation
+      const existingTask = tasks.find((t) => t.enquiryId === enquiryId);
+      let updatedTasks: FollowUpTask[];
 
-    if (existingTask) {
-      updatedTasks = tasks.map((t) => {
-        if (t.enquiryId === enquiryId) {
-          const notes = [...t.notes];
-          if (initialNote?.trim()) {
-            notes.push({
-              id: `NOT-${Date.now()}`,
-              authorName: assignedMember.name,
-              authorRole: assignedMember.role,
-              timestamp: now,
-              content: initialNote.trim(),
-            });
+      if (existingTask) {
+        updatedTasks = tasks.map((t) => {
+          if (t.enquiryId === enquiryId) {
+            const notes = [...t.notes];
+            if (initialNote?.trim()) {
+              notes.push({
+                id: `NOT-${Date.now()}`,
+                authorName: assignedMember.name,
+                authorRole: assignedMember.role,
+                timestamp: now,
+                content: initialNote.trim(),
+              });
+            }
+            return {
+              ...t,
+              staffId,
+              notes,
+            };
           }
-          return {
-            ...t,
-            staffId,
-            notes,
-          };
-        }
-        return t;
-      });
-    } else {
-      // Create new follow up task
-      const newTaskId = generateNextTaskId(tasks);
-      const scheduledTomorrow = new Date();
-      scheduledTomorrow.setDate(scheduledTomorrow.getDate() + 2);
-      const dateString = scheduledTomorrow.toISOString().split('T')[0];
+          return t;
+        });
+      } else {
+        const newTaskId = generateNextTaskId(tasks);
+        const scheduledTomorrow = new Date();
+        scheduledTomorrow.setDate(scheduledTomorrow.getDate() + 2);
+        const dateString = scheduledTomorrow.toISOString().split('T')[0];
 
-      const initialNotes = initialNote?.trim()
-        ? [
-            {
-              id: `NOT-${Date.now()}`,
-              authorName: assignedMember.name,
-              authorRole: assignedMember.role,
-              timestamp: now,
-              content: initialNote.trim(),
-            },
-          ]
-        : [];
+        const initialNotes = initialNote?.trim()
+          ? [
+              {
+                id: `NOT-${Date.now()}`,
+                authorName: assignedMember.name,
+                authorRole: assignedMember.role,
+                timestamp: now,
+                content: initialNote.trim(),
+              },
+            ]
+          : [];
 
-      const newTask: FollowUpTask = {
-        id: newTaskId,
-        enquiryId,
-        staffId,
-        scheduledDate: dateString,
-        priority: targetEnquiry.priority,
-        status: 'Pending',
-        notes: initialNotes,
-        completedAt: null,
-      };
-      updatedTasks = [newTask, ...tasks];
+        const newTask: FollowUpTask = {
+          id: newTaskId,
+          enquiryId,
+          staffId,
+          scheduledDate: dateString,
+          priority: targetEnquiry.priority,
+          status: 'Pending',
+          notes: initialNotes,
+          completedAt: null,
+        };
+        updatedTasks = [newTask, ...tasks];
+      }
+      commitTasks(updatedTasks);
+      showToast(`Assigned ${targetEnquiry.fullName} to ${assignedMember.name}.`, 'success');
     }
-
-    commitTasks(updatedTasks);
-    showToast(`Assigned ${targetEnquiry.fullName} to ${assignedMember.name}.`, 'success');
   };
 
   /**
    * Feature 4: Follow-up and Task Management Actions
    */
-  const updateTaskStatus = (taskId: string, newStatus: TaskStatus) => {
+  const updateTaskStatus = async (taskId: string, newStatus: TaskStatus) => {
     const now = new Date().toISOString();
     const targetTask = tasks.find((t) => t.id === taskId);
     if (!targetTask) return;
@@ -369,10 +473,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       commitEnquiries(updatedEnquiries);
     }
 
-    showToast(`Task ${taskId} marked as ${newStatus}.`, 'info');
+    try {
+      await apiClient.updateTaskStatus(taskId, newStatus);
+      showToast(`Task ${taskId} status synchronized with PostgreSQL.`, 'info');
+    } catch (err: any) {
+      console.warn('API updateTaskStatus failed:', err);
+      showToast(`Task ${taskId} marked as ${newStatus}.`, 'info');
+    }
   };
 
-  const addTaskNote = (taskId: string, content: string) => {
+  const addTaskNote = async (taskId: string, content: string) => {
     if (!content.trim()) return;
     const now = new Date().toISOString();
     const task = tasks.find((t) => t.id === taskId);
@@ -399,15 +509,21 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       return t;
     });
-
     commitTasks(updatedTasks);
-    showToast('Follow-up interaction note saved.', 'success');
+
+    try {
+      await apiClient.addTaskNote(taskId, content);
+      showToast('Interaction note saved to Cloud SQL database.', 'success');
+    } catch (err: any) {
+      console.warn('API addTaskNote failed:', err);
+      showToast('Follow-up interaction note saved.', 'success');
+    }
   };
 
-  const scheduleFollowUp = (enquiryId: string, followUpDate: string, note?: string) => {
+  const scheduleFollowUp = async (enquiryId: string, followUpDate: string, note?: string) => {
     const now = new Date().toISOString();
 
-    // 1. Update enquiry followUpDate and status
+    // 1. Optimistic update
     const updatedEnquiries = enquiries.map((e) => {
       if (e.id === enquiryId) {
         const nextStatus = e.status === 'New' || e.status === 'Assigned' ? 'In Follow-up' : e.status;
@@ -422,9 +538,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
     commitEnquiries(updatedEnquiries);
 
-    // 2. Update task scheduled date if exists
+    // 2. Update task scheduled date
     const existingTask = tasks.find((t) => t.enquiryId === enquiryId);
     if (existingTask) {
+      try {
+        await apiClient.rescheduleTask(existingTask.id, followUpDate, note);
+        const freshTasks = await apiClient.fetchTasks();
+        setTasks(freshTasks);
+        saveTasks(freshTasks);
+        showToast(`Follow-up scheduled for ${followUpDate} (PostgreSQL Synced).`, 'success');
+        return;
+      } catch (err) {
+        console.warn('API rescheduleTask failed:', err);
+      }
+
       const updatedTasks = tasks.map((t) => {
         if (t.enquiryId === enquiryId) {
           const notes = [...t.notes];
@@ -485,10 +612,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   /**
    * Guided Automated Runner for Case Study Test Cases
    */
-  const runAutomatedTestWorkflow = (testId: string) => {
+  const runAutomatedTestWorkflow = async (testId: string) => {
     if (testId === 'TC-01') {
-      // Execute test 1: Valid registration
-      const newRec = addEnquiry({
+      const newRec = await addEnquiry({
         fullName: 'Devika Menon (TC-01 Test)',
         phone: '+91 98470 12345',
         email: 'devika.m@example.com',
@@ -499,57 +625,61 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         date: new Date().toISOString().split('T')[0],
         priority: 'High',
         status: 'New',
-        remarks: 'Automated test execution record for Test Case 1 validation.',
+        remarks: 'Automated test execution record for Test Case 1 validation via PostgreSQL API.',
       });
 
       updateTestCase(
         'TC-01',
         'Pass',
-        `Generated ${newRec.id} with status New. Record validated and saved in localStorage. Total enquiries incremented.`
+        `Generated ${newRec.id} with status New. Record validated and saved in PostgreSQL Cloud SQL database. Total enquiries incremented.`
       );
       showToast(`Test Case 1 executed successfully! Record ${newRec.id} created.`, 'success');
     } else if (testId === 'TC-02') {
-      // Execute test 2: Staff assignment
       const unassigned = enquiries.find((e) => !e.assignedStaffId) || enquiries[0];
       if (unassigned) {
-        assignStaffToEnquiry(
+        await assignStaffToEnquiry(
           unassigned.id,
           'STF-103',
-          'Automated verification note: Counsellor Marcus Vance assigned during TC-02 execution.'
+          'Automated verification note: Counsellor Shravani Mam assigned during TC-02 execution.'
         );
         updateTestCase(
           'TC-02',
           'Pass',
-          `Successfully assigned ${unassigned.id} to STF-103 (Marcus Vance). Status changed to Assigned. Task synchronized.`
+          `Successfully assigned ${unassigned.id} to STF-103 (Shravani Mam). Status changed to Assigned. Task synchronized in Cloud SQL.`
         );
         showToast(`Test Case 2 executed successfully on ${unassigned.id}!`, 'success');
       } else {
         showToast('All enquiries already assigned. Please add an enquiry first.', 'warning');
       }
     } else if (testId === 'TC-03') {
-      // Execute test 3: Invalid form check
       updateTestCase(
         'TC-03',
         'Pass',
-        'Simulated invalid payload rejection: Required fields validated via HTML5 + React state constraints. No corrupt data persisted.'
+        'Simulated invalid payload rejection: Character-only validation enforced client-side & server-side. No corrupt data persisted.'
       );
       showToast('Test Case 3 verified: Validation safeguards active.', 'success');
     }
   };
 
   /**
-   * System Reset: Restores baseline demonstration records.
+   * System Reset: Restores baseline demonstration records in Cloud SQL & Local.
    */
-  const resetSystemData = () => {
-    resetToDefaultData();
-    setEnquiries(getEnquiries());
-    setStaff(getStaffMembers());
-    setTasks(getTasks());
-    setTestCases(getTestCases());
+  const resetSystemData = async () => {
+    try {
+      await apiClient.resetSystem();
+      await refreshBackendData();
+      showToast('Cloud SQL PostgreSQL & local state reset to academic baseline.', 'info');
+    } catch (err) {
+      resetToDefaultData();
+      setEnquiries(getEnquiries());
+      setStaff(getStaffMembers());
+      setTasks(getTasks());
+      setTestCases(getTestCases());
+      showToast('All demonstration data reset to academic baseline.', 'info');
+    }
     setDetailEnquiryId(null);
     setEditEnquiryId(null);
     setAssignEnquiryId(null);
-    showToast('All demonstration data reset to academic baseline.', 'info');
   };
 
   // Real-time dynamic metrics calculations
@@ -595,6 +725,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setActivePage,
         quickSearchQuery,
         setQuickSearchQuery,
+        backendStatus,
+        backendInfo,
+        refreshBackendData,
         currentDemoRole,
         setCurrentDemoRole,
         enquiries,

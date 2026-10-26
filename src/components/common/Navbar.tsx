@@ -5,23 +5,26 @@
  * 
  * Top Navigation Bar Component
  * Displays breadcrumbs, quick search, notification dropdown,
- * role switcher, and "Reset Demo Data" action.
+ * role switcher, PostgreSQL Cloud SQL status, and Firebase Google Auth.
  */
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useData } from '../../context/DataContext';
 import { StaffRole, ActivePage } from '../../types';
 import { ConfirmationModal } from './ConfirmationModal';
+import { auth, googleAuthProvider } from '../../lib/firebase';
+import { onAuthStateChanged, signInWithPopup, signOut, User } from 'firebase/auth';
 import {
   Menu,
   Search,
   Bell,
   RotateCcw,
-  UserCheck,
   CheckCircle2,
   Calendar,
-  AlertCircle,
-  ExternalLink,
+  Database,
+  LogIn,
+  LogOut,
+  Shield,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -49,18 +52,31 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenMobileMenu }) => {
     setQuickSearchQuery,
     currentDemoRole,
     setCurrentDemoRole,
+    backendStatus,
+    backendInfo,
     resetSystemData,
     enquiries,
     tasks,
     setDetailEnquiryId,
+    showToast,
   } = useData();
 
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const notifRef = useRef<HTMLDivElement>(null);
   const roleRef = useRef<HTMLDivElement>(null);
+
+  // Monitor Firebase Auth state
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Close popovers when clicking outside
   useEffect(() => {
@@ -75,6 +91,29 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenMobileMenu }) => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const handleSignIn = async () => {
+    setAuthLoading(true);
+    try {
+      const cred = await signInWithPopup(auth, googleAuthProvider);
+      showToast(`Welcome, ${cred.user.displayName || 'Staff Member'}!`, 'success');
+    } catch (err: any) {
+      if (err.code !== 'auth/popup-closed-by-user') {
+        showToast(`Sign in error: ${err.message}`, 'error');
+      }
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      showToast('Signed out of ELVARIQ.', 'info');
+    } catch (err: any) {
+      showToast(`Sign out error: ${err.message}`, 'error');
+    }
+  };
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -135,8 +174,28 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenMobileMenu }) => {
           </div>
         </div>
 
-        {/* Right: Actions (Notification, Persona Switcher, Reset Demo Data) */}
+        {/* Right: Database Indicator & Actions */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {/* Cloud SQL Connection Status Pill */}
+          <div
+            className={`hidden xl:flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-full border ${
+              backendStatus === 'connected'
+                ? 'bg-teal-50 border-teal-200 text-teal-800'
+                : 'bg-amber-50 border-amber-200 text-amber-800'
+            }`}
+            title={`Database: ${backendInfo}`}
+          >
+            <Database className="w-3 h-3 text-teal-600" />
+            <span className="truncate max-w-[140px]">
+              {backendStatus === 'connected' ? 'Cloud SQL Active' : 'Offline Cache'}
+            </span>
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                backendStatus === 'connected' ? 'bg-teal-500 animate-pulse' : 'bg-amber-500'
+              }`}
+            />
+          </div>
+
           {/* Reset Demo Data Button */}
           <button
             type="button"
@@ -145,7 +204,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenMobileMenu }) => {
             title="Reset demonstration data to original case study state"
           >
             <RotateCcw className="w-3.5 h-3.5 text-gray-600" />
-            <span className="hidden sm:inline">Reset Demo Data</span>
+            <span className="hidden sm:inline">Reset Demo</span>
           </button>
 
           {/* Notifications Popover */}
@@ -169,7 +228,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenMobileMenu }) => {
                     Recent Enquiries & Follow-ups
                   </span>
                   <span className="text-[10px] text-teal-600 font-semibold bg-teal-50 px-1.5 py-0.5 rounded">
-                    Live Local
+                    PostgreSQL Live
                   </span>
                 </div>
 
@@ -229,11 +288,49 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenMobileMenu }) => {
                   >
                     View All Enquiries →
                   </button>
-                  <span className="text-gray-400">Academic Demo Data</span>
+                  <span className="text-gray-400">Cloud SQL DB</span>
                 </div>
               </div>
             )}
           </div>
+
+          {/* Firebase Authentication Button / User Profile */}
+          {currentUser ? (
+            <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg p-1 pr-2">
+              {currentUser.photoURL ? (
+                <img
+                  src={currentUser.photoURL}
+                  alt={currentUser.displayName || 'User'}
+                  className="w-6 h-6 rounded-md object-cover"
+                />
+              ) : (
+                <div className="w-6 h-6 rounded-md bg-teal-600 text-white font-bold text-xs flex items-center justify-center">
+                  {(currentUser.displayName || currentUser.email || 'U').charAt(0).toUpperCase()}
+                </div>
+              )}
+              <span className="hidden md:inline text-xs font-semibold text-gray-800 max-w-[100px] truncate">
+                {currentUser.displayName || currentUser.email?.split('@')[0]}
+              </span>
+              <button
+                onClick={handleSignOut}
+                className="p-1 text-gray-400 hover:text-red-600 rounded transition-colors"
+                title="Sign Out"
+                aria-label="Sign Out"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleSignIn}
+              disabled={authLoading}
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors"
+              title="Sign in with Google (Firebase Auth)"
+            >
+              <LogIn className="w-3.5 h-3.5 text-teal-600" />
+              <span>{authLoading ? 'Signing in...' : 'Sign In'}</span>
+            </button>
+          )}
 
           {/* Demonstration Role Switcher */}
           <div className="relative" ref={roleRef}>
@@ -251,7 +348,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenMobileMenu }) => {
                   {currentDemoRole}
                 </span>
                 <span className="text-[10px] text-gray-500 font-medium leading-tight">
-                  Demo Perspective
+                  Role Persona
                 </span>
               </div>
             </button>
@@ -259,11 +356,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenMobileMenu }) => {
             {showRoleMenu && (
               <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-200 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                 <div className="px-3 py-1.5 border-b border-gray-100">
-                  <span className="text-[11px] font-bold text-gray-900 uppercase tracking-wider block">
-                    Demonstration Role Persona
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5 text-teal-600" />
+                    <span className="text-[11px] font-bold text-gray-900 uppercase tracking-wider block">
+                      Role-Based Access
+                    </span>
+                  </div>
                   <p className="text-[10px] text-gray-500 mt-0.5 leading-snug">
-                    Simulates UI perspective for the lecturer. No backend auth.
+                    Controls API authorization and UI view permissions.
                   </p>
                 </div>
 
@@ -284,9 +384,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenMobileMenu }) => {
                       <div className="flex flex-col">
                         <span>{role}</span>
                         <span className="text-[10px] text-gray-400 font-normal">
-                          {role === 'Administrator' && 'Institutional policy & reports'}
-                          {role === 'Manager' && 'Workload & enquiry allocation'}
-                          {role === 'Counsellor' && 'Active counselling & task pipeline'}
+                          {role === 'Administrator' && 'Policy, staff oversight & full SQL control'}
+                          {role === 'Manager' && 'Workload balancing & assignment pipeline'}
+                          {role === 'Counsellor' && 'Active candidate interaction & follow-ups'}
                         </span>
                       </div>
                       {currentDemoRole === role && (
@@ -304,13 +404,13 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenMobileMenu }) => {
       {/* Confirmation Modal for Resetting Demo Data */}
       <ConfirmationModal
         isOpen={showResetConfirm}
-        title="Reset Demonstration Data?"
-        message="This will re-initialize browser localStorage back to the original IME case study baseline dataset. Any custom enquiries or changes added during your evaluation session will be reverted."
+        title="Reset System & Cloud SQL Data?"
+        message="This will re-initialize the PostgreSQL Cloud SQL database and local state back to the original IME case study baseline dataset. Any custom records created during this session will be reverted."
         confirmLabel="Reset to Baseline"
         cancelLabel="Keep Current Data"
         isDestructive={true}
-        onConfirm={() => {
-          resetSystemData();
+        onConfirm={async () => {
+          await resetSystemData();
           setShowResetConfirm(false);
         }}
         onCancel={() => setShowResetConfirm(false)}

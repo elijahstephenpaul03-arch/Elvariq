@@ -88,7 +88,7 @@ const AppLayout: React.FC = () => {
               >
                 Database Schema
               </button>
-              <span className="font-mono text-gray-400">Client-Side v1.0</span>
+              <span className="font-mono text-gray-400">Full-Stack Cloud SQL v2.0</span>
             </div>
           </div>
         </footer>

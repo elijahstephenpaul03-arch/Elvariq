@@ -12,50 +12,50 @@ import { Enquiry, StaffMember, FollowUpTask, TestCaseModel } from '../types';
 export const INITIAL_STAFF: StaffMember[] = [
   {
     id: 'STF-101',
-    name: 'Prof. Aris Thorne',
+    name: 'Prudhvi Sir',
     role: 'Administrator',
     department: 'Academic Administration & Oversight',
-    email: 'aris.thorne@elvariq.edu',
+    email: 'prudhvi.sir@elvariq.edu',
     phone: '+91 98450 11201',
     specialization: 'Institutional Policy & Admissions Oversight',
     maxCapacity: 10,
   },
   {
     id: 'STF-102',
-    name: 'Priya Sharma',
+    name: 'Padmini Mam',
     role: 'Manager',
     department: 'Student Relations & Admissions',
-    email: 'priya.sharma@elvariq.edu',
+    email: 'padmini.mam@elvariq.edu',
     phone: '+91 98450 11202',
     specialization: 'Enquiry Allocation & Counsellor Workflow',
     maxCapacity: 20,
   },
   {
     id: 'STF-103',
-    name: 'Marcus Vance',
+    name: 'Shravani Mam',
     role: 'Counsellor',
     department: 'Technology & Computing Admissions',
-    email: 'marcus.vance@elvariq.edu',
+    email: 'shravani.mam@elvariq.edu',
     phone: '+91 98450 11203',
     specialization: 'Computer Science, IT & Cloud Disciplines',
     maxCapacity: 15,
   },
   {
     id: 'STF-104',
-    name: 'Elena Rostova',
+    name: 'Akhila Mam',
     role: 'Counsellor',
     department: 'Engineering & Applied Sciences',
-    email: 'elena.rostova@elvariq.edu',
+    email: 'akhila.mam@elvariq.edu',
     phone: '+91 98450 11204',
     specialization: 'Mechanical, Mechatronics & Civil Diplomas',
     maxCapacity: 15,
   },
   {
     id: 'STF-105',
-    name: 'David Chen',
+    name: 'Mounika Mam',
     role: 'Counsellor',
     department: 'Management & Professional Studies',
-    email: 'david.chen@elvariq.edu',
+    email: 'mounika.mam@elvariq.edu',
     phone: '+91 98450 11205',
     specialization: 'Business Administration, Fintech & Analytics',
     maxCapacity: 15,
@@ -305,7 +305,7 @@ export const INITIAL_TASKS: FollowUpTask[] = [
     notes: [
       {
         id: 'NOT-101',
-        authorName: 'Marcus Vance',
+        authorName: 'Shravani Mam',
         authorRole: 'Counsellor',
         timestamp: '2026-10-08T11:15:00Z',
         content: 'Conducted first telephone intake. Aarav is eager about AI lab facilities. Follow up on Tuesday with fee breakdown.',
@@ -323,7 +323,7 @@ export const INITIAL_TASKS: FollowUpTask[] = [
     notes: [
       {
         id: 'NOT-102',
-        authorName: 'David Chen',
+        authorName: 'Mounika Mam',
         authorRole: 'Counsellor',
         timestamp: '2026-10-04T10:00:00Z',
         content: 'Emailed weekend schedule PDF. Need to check if employer sponsorship letter has been cleared.',
@@ -341,7 +341,7 @@ export const INITIAL_TASKS: FollowUpTask[] = [
     notes: [
       {
         id: 'NOT-103',
-        authorName: 'Elena Rostova',
+        authorName: 'Akhila Mam',
         authorRole: 'Counsellor',
         timestamp: '2026-10-10T16:20:00Z',
         content: 'Candidate paid token fee in person at admissions desk. Handed admission confirmation receipt.',
@@ -359,7 +359,7 @@ export const INITIAL_TASKS: FollowUpTask[] = [
     notes: [
       {
         id: 'NOT-104',
-        authorName: 'Marcus Vance',
+        authorName: 'Shravani Mam',
         authorRole: 'Counsellor',
         timestamp: '2026-10-09T14:30:00Z',
         content: 'Discussed cloud sandbox credits. Follow up on Monday regarding installment payment option.',
@@ -377,7 +377,7 @@ export const INITIAL_TASKS: FollowUpTask[] = [
     notes: [
       {
         id: 'NOT-105',
-        authorName: 'Elena Rostova',
+        authorName: 'Akhila Mam',
         authorRole: 'Counsellor',
         timestamp: '2026-10-10T09:40:00Z',
         content: 'Scheduled in-person meeting with Karthik and his parents for Thursday 11:00 AM.',
@@ -395,7 +395,7 @@ export const INITIAL_TASKS: FollowUpTask[] = [
     notes: [
       {
         id: 'NOT-106',
-        authorName: 'Marcus Vance',
+        authorName: 'Shravani Mam',
         authorRole: 'Counsellor',
         timestamp: '2026-10-11T15:30:00Z',
         content: 'Sent virtual meeting link. Tanvi will review syllabus with family over the weekend.',
@@ -413,7 +413,7 @@ export const INITIAL_TASKS: FollowUpTask[] = [
     notes: [
       {
         id: 'NOT-107',
-        authorName: 'Elena Rostova',
+        authorName: 'Akhila Mam',
         authorRole: 'Counsellor',
         timestamp: '2026-10-11T14:10:00Z',
         content: 'Awaiting ITI transcript copy to verify semester credit exemptions.',
@@ -460,19 +460,19 @@ export const INITIAL_TEST_CASES: TestCaseModel[] = [
       'Navigate to "Manage Enquiries" or "Staff Management" page.',
       'Locate unassigned enquiry ELV-2026-004 (Ananya Iyer).',
       'Click "Assign Staff" or use quick assignment dropdown.',
-      'Select Marcus Vance (STF-103 - Technology & Computing Admissions).',
+      'Select Shravani Mam (STF-103 - Technology & Computing Admissions).',
       'Confirm the assignment.',
-      'Check Staff Management page (Marcus Vance workload count increases by 1).',
-      'Check Follow-up Tasks page (A new pending task is generated for Marcus Vance).',
+      'Check Staff Management page (Shravani Mam workload count increases by 1).',
+      'Check Follow-up Tasks page (A new pending task is generated for Shravani Mam).',
     ],
     inputData: {
       targetEnquiryId: 'ELV-2026-004',
       assignedStaffId: 'STF-103',
-      staffName: 'Marcus Vance',
+      staffName: 'Shravani Mam',
       assignedRole: 'Counsellor',
     },
-    expectedResult: 'Enquiry status transitions to "Assigned", assigned staff name updates in table, staff assigned enquiry count increments, and task item appears in Marcus Vances queue.',
-    actualResult: 'Enquiry status changed to Assigned; Marcus Vance active enquiries count incremented; task queue synchronized.',
+    expectedResult: 'Enquiry status transitions to "Assigned", assigned staff name updates in table, staff assigned enquiry count increments, and task item appears in Shravani Mams queue.',
+    actualResult: 'Enquiry status changed to Assigned; Shravani Mam active enquiries count incremented; task queue synchronized.',
     status: 'Pass',
     testedBy: 'Diploma Student (IME Case Study Evaluator)',
     lastExecuted: '2026-10-12 11:25 AM',

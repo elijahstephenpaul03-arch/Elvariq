@@ -60,7 +60,13 @@ export const EnquiryEditModal: React.FC<EnquiryEditModalProps> = ({ enquiryId, o
     e.preventDefault();
 
     const newErrors: Record<string, string> = {};
-    if (!form.fullName.trim()) newErrors.fullName = 'Full Name is required';
+    if (!form.fullName.trim()) {
+      newErrors.fullName = 'Full Name is required';
+    } else if (/\d/.test(form.fullName)) {
+      newErrors.fullName = 'Please enter only characters. Numbers are not allowed.';
+    } else if (!/^[a-zA-Z\s.'-]+$/.test(form.fullName.trim())) {
+      newErrors.fullName = 'Please enter only characters.';
+    }
     if (!form.phone.trim()) newErrors.phone = 'Phone Number is required';
     if (!form.email.trim() || !form.email.includes('@')) {
       newErrors.email = 'Valid Email is required';

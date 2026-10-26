@@ -65,11 +65,11 @@ export const DataFieldsDoc: React.FC = () => {
           </p>
         </div>
 
-        {/* Academic Note */}
-        <div className="p-3 bg-amber-50 rounded-lg border border-amber-200/80 text-xs max-w-sm text-amber-900 flex items-start gap-2">
-          <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+        {/* Cloud SQL Live Status Note */}
+        <div className="p-3 bg-teal-50 rounded-lg border border-teal-200 text-xs max-w-sm text-teal-900 flex items-start gap-2">
+          <Database className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
           <p className="text-[11px] leading-tight">
-            <strong>Documentation Only:</strong> ELVARIQ is implemented as a frontend prototype using browser localStorage. This specification is designed for academic evaluation.
+            <strong>Live Relational Engine:</strong> Deployed on Google Cloud SQL (PostgreSQL Developer Edition in region <code>asia-southeast1</code>) via Drizzle ORM and Express REST APIs.
           </p>
         </div>
       </div>

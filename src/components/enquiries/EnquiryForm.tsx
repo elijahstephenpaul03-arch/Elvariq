@@ -62,6 +62,8 @@ export const EnquiryForm: React.FC = () => {
     switch (name) {
       case 'fullName':
         if (!value.trim()) return 'Candidate Full Name is required.';
+        if (/\d/.test(value)) return 'Please enter characters only. Numbers are not allowed.';
+        if (!/^[a-zA-Z\s.'-]+$/.test(value.trim())) return 'Please enter characters only.';
         if (value.trim().length < 3) return 'Name must be at least 3 characters.';
         return '';
       case 'phone':
@@ -96,8 +98,11 @@ export const EnquiryForm: React.FC = () => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
 
-    // Real-time validation clearance
-    if (errors[name]) {
+    // Instant real-time feedback for Full Name character validation
+    if (name === 'fullName') {
+      const errorMsg = validateField(name, value);
+      setErrors((prev) => ({ ...prev, [name]: errorMsg }));
+    } else if (errors[name]) {
       const errorMsg = validateField(name, value);
       setErrors((prev) => ({ ...prev, [name]: errorMsg }));
     }
@@ -117,7 +122,7 @@ export const EnquiryForm: React.FC = () => {
     setSubmittedEnquiryId(null);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Comprehensive validation check across all fields
@@ -141,7 +146,7 @@ export const EnquiryForm: React.FC = () => {
     }
 
     // Submit and store
-    const created = addEnquiry(formData);
+    const created = await addEnquiry(formData);
     setSubmittedEnquiryId(created.id);
   };
 
@@ -179,7 +184,7 @@ export const EnquiryForm: React.FC = () => {
                 Enquiry Successfully Registered ({submittedEnquiryId})
               </h4>
               <p className="text-xs text-teal-700 mt-0.5">
-                The record has been validated and committed to browser localStorage.
+                The record has been validated and persisted to PostgreSQL Cloud SQL database.
               </p>
             </div>
           </div>

@@ -92,7 +92,34 @@ export function getStaffMembers(): StaffMember[] {
       localStorage.setItem(KEYS.STAFF, JSON.stringify(INITIAL_STAFF));
       return INITIAL_STAFF;
     }
-    return JSON.parse(raw);
+    const parsed: StaffMember[] = JSON.parse(raw);
+    // Sync names with latest definitions by ID
+    const nameMap: Record<string, { name: string; email: string }> = {
+      'STF-101': { name: 'Prudhvi Sir', email: 'prudhvi.sir@elvariq.edu' },
+      'STF-102': { name: 'Padmini Mam', email: 'padmini.mam@elvariq.edu' },
+      'STF-103': { name: 'Shravani Mam', email: 'shravani.mam@elvariq.edu' },
+      'STF-104': { name: 'Akhila Mam', email: 'akhila.mam@elvariq.edu' },
+      'STF-105': { name: 'Mounika Mam', email: 'mounika.mam@elvariq.edu' },
+    };
+
+    let needsSave = false;
+    const synchronized = parsed.map((m) => {
+      if (nameMap[m.id] && m.name !== nameMap[m.id].name) {
+        needsSave = true;
+        return {
+          ...m,
+          name: nameMap[m.id].name,
+          email: nameMap[m.id].email,
+        };
+      }
+      return m;
+    });
+
+    if (needsSave) {
+      localStorage.setItem(KEYS.STAFF, JSON.stringify(synchronized));
+    }
+
+    return synchronized;
   } catch (err) {
     console.error('Failed to parse staff from localStorage:', err);
     return INITIAL_STAFF;
@@ -120,7 +147,32 @@ export function getTasks(): FollowUpTask[] {
       localStorage.setItem(KEYS.TASKS, JSON.stringify(INITIAL_TASKS));
       return INITIAL_TASKS;
     }
-    return JSON.parse(raw);
+    const parsed: FollowUpTask[] = JSON.parse(raw);
+    const authorMap: Record<string, string> = {
+      'Prof. Aris Thorne': 'Prudhvi Sir',
+      'Priya Sharma': 'Padmini Mam',
+      'Marcus Vance': 'Shravani Mam',
+      'Elena Rostova': 'Akhila Mam',
+      'David Chen': 'Mounika Mam',
+    };
+
+    let tasksModified = false;
+    const updated = parsed.map((t) => {
+      const updatedNotes = t.notes.map((n) => {
+        if (authorMap[n.authorName]) {
+          tasksModified = true;
+          return { ...n, authorName: authorMap[n.authorName] };
+        }
+        return n;
+      });
+      return { ...t, notes: updatedNotes };
+    });
+
+    if (tasksModified) {
+      localStorage.setItem(KEYS.TASKS, JSON.stringify(updated));
+    }
+
+    return updated;
   } catch (err) {
     console.error('Failed to parse tasks from localStorage:', err);
     return INITIAL_TASKS;

@@ -135,25 +135,29 @@ export const AboutProject: React.FC = () => {
 
       {/* Scope, Limitations, and Future Enhancements */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Prototype Scope & Limitations */}
+        {/* Upgraded Full-Stack Architecture */}
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-2xs space-y-3 text-xs">
-          <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
-            Prototype Scope & Technical Constraints
+          <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-teal-600" />
+            <span>Upgraded Full-Stack Architecture</span>
           </h2>
 
           <div className="space-y-2 text-gray-600 leading-relaxed">
             <p>
-              In strict accordance with the IME diploma project assignment guidelines:
+              Upgraded from frontend prototype to production-grade full-stack architecture:
             </p>
             <ul className="space-y-2 list-disc pl-4 text-gray-700">
               <li>
-                <strong>Frontend-Only Execution:</strong> Developed exclusively with React, Tailwind CSS, and HTML5 standard web APIs without a backend server or external database.
+                <strong>Cloud SQL PostgreSQL:</strong> Persistent relational database hosted in <code>asia-southeast1</code> with Drizzle ORM managing schema tables (enquiries, staff, tasks, users).
               </li>
               <li>
-                <strong>Client-Side Persistence:</strong> Uses browser <code className="font-mono text-teal-700 bg-teal-50 px-1 rounded">localStorage</code> to maintain state across browser refreshes during evaluations.
+                <strong>Node.js & Express REST APIs:</strong> Secure server endpoints handling input validation, staff assignment workflows, task pipeline, and database-driven report metrics.
               </li>
               <li>
-                <strong>Simulated Access Control:</strong> Demonstration roles (Administrator, Manager, Counsellor) illustrate interface perspective only and do not provide cryptographic server-side authentication.
+                <strong>Firebase Authentication:</strong> Token-verified authentication with role-based access control (RBAC) protecting sensitive operations.
+              </li>
+              <li>
+                <strong>Offline-Resilient Client:</strong> Seamless fallback to browser local cache ensuring uninterrupted UX during intermittent connectivity.
               </li>
             </ul>
           </div>
@@ -162,21 +166,21 @@ export const AboutProject: React.FC = () => {
         {/* Future Enhancements */}
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-2xs space-y-3 text-xs">
           <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
-            Future Enterprise Enhancements (Post-Diploma)
+            Enterprise Roadmap Enhancements
           </h2>
 
           <ul className="space-y-2 list-disc pl-4 text-gray-700 leading-relaxed">
             <li>
-              <strong>Relational PostgreSQL Database:</strong> Transition schema design documented on the Data Fields page into production SQL tables.
-            </li>
-            <li>
-              <strong>Role-Based Access Control (RBAC):</strong> Server-side JWT authentication with multi-factor verification for counsellors.
-            </li>
-            <li>
-              <strong>Automated Notifications:</strong> SMS / WhatsApp API triggers to alert candidates of orientation schedules and fee deadlines.
+              <strong>Automated Notifications:</strong> SMS and WhatsApp API triggers to alert candidates of orientation schedules and fee deadlines.
             </li>
             <li>
               <strong>Live Telephony / CTI Integration:</strong> Click-to-call integration allowing counsellors to dial prospects directly from the browser.
+            </li>
+            <li>
+              <strong>Document Upload & Verification:</strong> Cloud Storage integration for 10th/12th certificates and identity proof verification.
+            </li>
+            <li>
+              <strong>Fee Payment Gateway:</strong> Razorpay / Stripe integration for instant token admission fee collection and receipt generation.
             </li>
           </ul>
         </div>
